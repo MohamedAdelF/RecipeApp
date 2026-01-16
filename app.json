@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "RecipeApp",
+    "slug": "recipe-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "recipeapp",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FF6B35"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.recipeapp",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "We need camera access to scan your fridge and pantry",
+        "NSPhotoLibraryUsageDescription": "We need photo access to select images of your ingredients",
+        "NSMicrophoneUsageDescription": "We need microphone access for voice-controlled cooking mode",
+        "NSSpeechRecognitionUsageDescription": "We need speech recognition for hands-free cooking commands"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B35"
+      },
+      "package": "com.yourcompany.recipeapp",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RecipeApp to access your camera to scan ingredients"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow RecipeApp to access your photos"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
+}
