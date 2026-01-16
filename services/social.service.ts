@@ -310,24 +310,22 @@ class SocialService {
 
     updateProgress('Analyzing description...', 30);
 
-    // Check if we have enough data from description
+    // Get description and hashtags
     const description = metadata.description || metadata.title || '';
     const hashtags = metadata.hashtags || [];
 
-    // If description is very short, we may need manual input or vision
-    if (description.length < 50 && hashtags.length < 3) {
-      updateProgress('Insufficient data detected...', 40);
-
+    // If absolutely no data available, request manual input
+    if (!description && hashtags.length === 0) {
       return {
         success: false,
         metadata,
-        error: 'Not enough information in the video description to extract a recipe.',
+        error: 'Could not extract any information from this post. Please provide the recipe details manually.',
         needsManualInput: true,
         insufficientData: true,
       };
     }
 
-    updateProgress('Extracting recipe from description...', 50);
+    updateProgress('Extracting recipe with AI...', 50);
 
     try {
       // Use AI to extract recipe from description

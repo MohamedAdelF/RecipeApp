@@ -29,20 +29,15 @@ class InstagramService {
    */
   isInstagramUrl(url: string): boolean {
     const patterns = [
-      // Standard formats
       /instagram\.com\/reel\/[\w-]+/i,
       /instagram\.com\/reels\/[\w-]+/i,
       /instagram\.com\/p\/[\w-]+/i,
       /instagram\.com\/tv\/[\w-]+/i,
-      // Short URL formats
       /instagr\.am\/p\/[\w-]+/i,
       /instagr\.am\/reel\/[\w-]+/i,
       /instagr\.am\/reels\/[\w-]+/i,
-      // Share URLs
       /instagram\.com\/share\/[\w-]+/i,
-      // Stories (though we can't extract these)
       /instagram\.com\/stories\/[\w.-]+\/\d+/i,
-      // Any instagram domain with valid path
       /(?:www\.)?instagram\.com\/[\w\/@.-]+/i,
       /instagr\.am\/[\w\/@.-]+/i,
     ];
@@ -66,40 +61,23 @@ class InstagramService {
    */
   extractMediaId(url: string): string | null {
     try {
-      // Reel format: instagram.com/reel/ABC123 or instagram.com/reels/ABC123
       const reelMatch = url.match(/instagram\.com\/reels?\/([\w-]+)/i);
-      if (reelMatch?.[1]) {
-        return reelMatch[1];
-      }
+      if (reelMatch?.[1]) return reelMatch[1];
 
-      // Post format: instagram.com/p/ABC123
       const postMatch = url.match(/instagram\.com\/p\/([\w-]+)/i);
-      if (postMatch?.[1]) {
-        return postMatch[1];
-      }
+      if (postMatch?.[1]) return postMatch[1];
 
-      // IGTV format: instagram.com/tv/ABC123
       const tvMatch = url.match(/instagram\.com\/tv\/([\w-]+)/i);
-      if (tvMatch?.[1]) {
-        return tvMatch[1];
-      }
+      if (tvMatch?.[1]) return tvMatch[1];
 
-      // Short URL formats: instagr.am/p/ABC123 or instagr.am/reel/ABC123
       const shortPostMatch = url.match(/instagr\.am\/p\/([\w-]+)/i);
-      if (shortPostMatch?.[1]) {
-        return shortPostMatch[1];
-      }
+      if (shortPostMatch?.[1]) return shortPostMatch[1];
 
       const shortReelMatch = url.match(/instagr\.am\/reels?\/([\w-]+)/i);
-      if (shortReelMatch?.[1]) {
-        return shortReelMatch[1];
-      }
+      if (shortReelMatch?.[1]) return shortReelMatch[1];
 
-      // Share format: instagram.com/share/ABC123
       const shareMatch = url.match(/instagram\.com\/share\/([\w-]+)/i);
-      if (shareMatch?.[1]) {
-        return shareMatch[1];
-      }
+      if (shareMatch?.[1]) return shareMatch[1];
 
       return null;
     } catch (error) {
@@ -125,7 +103,7 @@ class InstagramService {
   }
 
   /**
-   * Normalize Instagram URL - remove tracking parameters
+   * Normalize Instagram URL
    */
   normalizeUrl(url: string): string {
     try {
@@ -141,12 +119,8 @@ class InstagramService {
   // URL RESOLUTION
   // ============================================
 
-  /**
-   * Resolve short URL to full URL by following redirects
-   */
   async resolveShortUrl(shortUrl: string): Promise<string> {
     try {
-      // Follow redirects to get the final URL
       const response = await axios.head(shortUrl, {
         maxRedirects: 5,
         timeout: 10000,
@@ -164,23 +138,6 @@ class InstagramService {
         return this.normalizeUrl(resolvedUrl);
       }
 
-      // Fallback: try GET request
-      const getResponse = await axios.get(shortUrl, {
-        maxRedirects: 5,
-        timeout: 10000,
-        validateStatus: (status) => status >= 200 && status < 400,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
-        }
-      });
-
-      const finalUrl = getResponse.request?.res?.responseUrl ||
-                       getResponse.request?.responseURL;
-
-      if (finalUrl && finalUrl.includes('instagram.com')) {
-        return this.normalizeUrl(finalUrl);
-      }
-
       return shortUrl;
     } catch (error) {
       console.error('Failed to resolve Instagram short URL:', error);
@@ -188,89 +145,71 @@ class InstagramService {
     }
   }
 
-  /**
-   * Ensure we have a full URL (resolve if short)
-   */
   async getFullUrl(url: string): Promise<string> {
-    const normalizedUrl = this.normalizeUrl(url);
-
     if (this.isShortUrl(url)) {
       console.log('Resolving short Instagram URL:', url);
       const resolved = await this.resolveShortUrl(url);
       console.log('Resolved to:', resolved);
       return resolved;
     }
-
-    return normalizedUrl;
+    return this.normalizeUrl(url);
   }
 
   // ============================================
-  // METADATA EXTRACTION
+  // METADATA EXTRACTION - SCRAPE META TAGS
   // ============================================
 
   /**
-   * Get video metadata using oEmbed API (free, official)
+   * Get video metadata by scraping the Instagram page
+   * Instagram's oEmbed API no longer works reliably, so we scrape meta tags
    */
   async getVideoMetadata(videoUrl: string): Promise<InstagramVideoMetadata> {
     try {
-      // First, resolve short URLs to full URLs
       const fullUrl = await this.getFullUrl(videoUrl);
       const mediaType = this.getMediaType(fullUrl);
 
-      // Instagram's official oEmbed endpoint
-      const oEmbedUrl = `https://api.instagram.com/oembed?url=${encodeURIComponent(fullUrl)}`;
-
-      const response = await axios.get(oEmbedUrl, {
+      // Fetch the Instagram page HTML
+      const response = await axios.get(fullUrl, {
         timeout: 15000,
         headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; RecipeApp/1.0)',
-        }
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.5',
+          'Cache-Control': 'no-cache',
+        },
+        maxRedirects: 5,
       });
 
-      if (response.data) {
-        const data = response.data;
+      const html = response.data;
 
-        // Extract hashtags from title/caption
-        const hashtags = this.extractHashtags(data.title || '');
+      // Extract meta tags from HTML
+      const metadata = this.extractMetaTagsFromHtml(html, fullUrl);
 
-        // Extract author username
-        let authorUsername = data.author_name || '';
-
+      if (metadata.description || metadata.title) {
         return {
           success: true,
           mediaId: this.extractMediaId(fullUrl) || undefined,
-          title: data.title || '',
-          description: data.title || '',
-          author: data.author_name || '',
-          authorUsername,
-          thumbnailUrl: data.thumbnail_url || '',
+          title: metadata.title || '',
+          description: metadata.description || '',
+          author: metadata.author || '',
+          authorUsername: metadata.authorUsername || '',
+          thumbnailUrl: metadata.thumbnailUrl || '',
           mediaType: mediaType || undefined,
-          hashtags,
+          hashtags: this.extractHashtags(metadata.description || ''),
           resolvedUrl: fullUrl,
         };
       }
 
-      return {
-        success: false,
-        error: 'No metadata available for this post',
-      };
+      // If scraping didn't work, return basic metadata
+      return this.getBasicMetadataFromUrl(fullUrl);
+
     } catch (error) {
       console.error('Failed to get Instagram metadata:', error);
 
-      // Try to return basic metadata even if oEmbed fails
       const fullUrl = await this.getFullUrl(videoUrl);
       const basicMetadata = this.getBasicMetadataFromUrl(fullUrl);
 
       if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNABORTED') {
-          return {
-            ...basicMetadata,
-            success: false,
-            error: 'Request timeout - please try again',
-          };
-        }
-
         if (error.response?.status === 404) {
           return {
             ...basicMetadata,
@@ -279,19 +218,11 @@ class InstagramService {
           };
         }
 
-        if (error.response?.status === 400) {
-          return {
-            ...basicMetadata,
-            success: false,
-            error: 'Invalid Instagram URL',
-          };
-        }
-
         if (error.response?.status === 401 || error.response?.status === 403) {
           return {
             ...basicMetadata,
             success: false,
-            error: 'This post is from a private account or requires login to view',
+            error: 'This post is from a private account',
           };
         }
       }
@@ -299,13 +230,100 @@ class InstagramService {
       return {
         ...basicMetadata,
         success: false,
-        error: 'Failed to fetch post information. The post may be private or unavailable.',
+        error: 'Failed to fetch post information. Try providing the recipe details manually.',
       };
     }
   }
 
   /**
-   * Fallback: Build metadata from URL when oEmbed fails
+   * Extract metadata from HTML meta tags
+   */
+  private extractMetaTagsFromHtml(html: string, url: string): {
+    title?: string;
+    description?: string;
+    author?: string;
+    authorUsername?: string;
+    thumbnailUrl?: string;
+  } {
+    const result: {
+      title?: string;
+      description?: string;
+      author?: string;
+      authorUsername?: string;
+      thumbnailUrl?: string;
+    } = {};
+
+    try {
+      // Extract og:description - this contains the caption
+      const ogDescriptionMatch = html.match(/<meta[^>]*property="og:description"[^>]*content="([^"]*)"/i) ||
+                                  html.match(/content="([^"]*)"[^>]*property="og:description"/i);
+      if (ogDescriptionMatch?.[1]) {
+        // Decode HTML entities
+        let description = ogDescriptionMatch[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&#x27;/g, "'")
+          .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+          .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
+
+        // Remove the "X likes, Y comments - username on Date:" prefix
+        const captionMatch = description.match(/:\s*[""](.*)[""]$/s) ||
+                            description.match(/:\s*["'](.*)["']$/s) ||
+                            description.match(/:\s*(.*)$/s);
+
+        if (captionMatch?.[1]) {
+          description = captionMatch[1].trim();
+        }
+
+        result.description = description;
+      }
+
+      // Extract og:title
+      const ogTitleMatch = html.match(/<meta[^>]*property="og:title"[^>]*content="([^"]*)"/i) ||
+                          html.match(/content="([^"]*)"[^>]*property="og:title"/i);
+      if (ogTitleMatch?.[1]) {
+        result.title = ogTitleMatch[1]
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&');
+      }
+
+      // Extract og:image for thumbnail
+      const ogImageMatch = html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"/i) ||
+                          html.match(/content="([^"]*)"[^>]*property="og:image"/i);
+      if (ogImageMatch?.[1]) {
+        result.thumbnailUrl = ogImageMatch[1].replace(/&amp;/g, '&');
+      }
+
+      // Extract author from og:url or the page
+      const ogUrlMatch = html.match(/<meta[^>]*property="og:url"[^>]*content="([^"]*)"/i);
+      if (ogUrlMatch?.[1]) {
+        const authorMatch = ogUrlMatch[1].match(/instagram\.com\/([^\/]+)\/(?:p|reel|reels|tv)\//i);
+        if (authorMatch?.[1]) {
+          result.authorUsername = authorMatch[1];
+          result.author = authorMatch[1];
+        }
+      }
+
+      // Try to get author from URL if not found in meta
+      if (!result.authorUsername) {
+        const urlAuthorMatch = url.match(/instagram\.com\/([^\/]+)\/(?:p|reel|reels|tv)\//i);
+        if (urlAuthorMatch?.[1]) {
+          result.authorUsername = urlAuthorMatch[1];
+          result.author = urlAuthorMatch[1];
+        }
+      }
+
+    } catch (error) {
+      console.error('Error extracting meta tags:', error);
+    }
+
+    return result;
+  }
+
+  /**
+   * Fallback: Build metadata from URL when scraping fails
    */
   getBasicMetadataFromUrl(videoUrl: string): InstagramVideoMetadata {
     const mediaId = this.extractMediaId(videoUrl);
@@ -329,21 +347,13 @@ class InstagramService {
   // HELPER METHODS
   // ============================================
 
-  /**
-   * Extract hashtags from text
-   */
   extractHashtags(text: string): string[] {
     const hashtagRegex = /#[\w\u0600-\u06FF]+/g;
     const matches = text.match(hashtagRegex);
-
     if (!matches) return [];
-
     return [...new Set(matches.map(tag => tag.toLowerCase()))];
   }
 
-  /**
-   * Check if hashtags suggest this is a recipe video
-   */
   isLikelyRecipeVideo(hashtags: string[]): boolean {
     const recipeRelatedHashtags = [
       '#recipe', '#recipes', '#cooking', '#cook', '#chef',
@@ -361,9 +371,6 @@ class InstagramService {
     );
   }
 
-  /**
-   * Extract potential recipe hints from hashtags
-   */
   getRecipeHintsFromHashtags(hashtags: string[]): {
     cuisineHints: string[];
     dishTypeHints: string[];
@@ -413,9 +420,6 @@ class InstagramService {
     return { cuisineHints, dishTypeHints, dietaryHints };
   }
 
-  /**
-   * Generate a thumbnail URL from media ID
-   */
   getThumbnailUrl(thumbnailUrl: string): string {
     return thumbnailUrl;
   }
@@ -427,16 +431,10 @@ export const instagramService = new InstagramService();
 // Export class for testing
 export default InstagramService;
 
-// ============================================
-// HELPER: Check if URL is Instagram
-// ============================================
 export const isInstagramUrl = (url: string): boolean => {
   return instagramService.isInstagramUrl(url);
 };
 
-// ============================================
-// HELPER: Get Instagram thumbnail
-// ============================================
 export const getInstagramThumbnail = (thumbnailUrl: string): string => {
   return instagramService.getThumbnailUrl(thumbnailUrl);
 };

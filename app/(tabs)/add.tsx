@@ -49,7 +49,7 @@ export default function AddScreen() {
         <View style={styles.cardBody}>
           <Text style={styles.cardTitle}>From Instagram</Text>
           <Text style={styles.cardDescription}>
-            Extract recipes from Instagram Reels and posts.
+            Extract recipes from posts, Reels, and IGTV.
           </Text>
         </View>
         <Ionicons name="arrow-forward" size={20} color="#1C100D" />

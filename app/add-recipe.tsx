@@ -51,9 +51,9 @@ const PLATFORM_CONFIGS: Record<SocialPlatform, PlatformConfig> = {
     icon: 'logo-instagram',
     color: '#E4405F',
     bgColor: 'rgba(228, 64, 95, 0.12)',
-    placeholder: 'https://instagram.com/reel/...',
+    placeholder: 'https://instagram.com/p/... or /reel/...',
     tips: [
-      'Reels and posts with recipe captions work best',
+      'Posts, Reels, and IGTV with recipe captions work best',
       'Public accounts are required',
       'Detailed captions help extraction',
       'You may need to add details manually',
