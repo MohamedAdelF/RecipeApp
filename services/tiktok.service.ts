@@ -13,6 +13,7 @@ export interface TikTokVideoMetadata {
   authorUsername?: string;
   thumbnailUrl?: string;
   hashtags?: string[];
+  resolvedUrl?: string;
   error?: string;
 }
 
@@ -23,17 +24,37 @@ class TikTokService {
   // ============================================
 
   /**
-   * Check if URL is a TikTok URL
+   * Check if URL is a TikTok URL (supports ALL formats)
    */
   isTikTokUrl(url: string): boolean {
     const patterns = [
+      // Standard format: tiktok.com/@user/video/123
       /tiktok\.com\/@[\w.-]+\/video\/\d+/i,
+      // Short formats
       /vm\.tiktok\.com\/[\w]+/i,
+      /vt\.tiktok\.com\/[\w]+/i,
       /tiktok\.com\/t\/[\w]+/i,
+      // Direct video format
       /tiktok\.com\/v\/\d+/i,
+      // Mobile share format
+      /m\.tiktok\.com\/v\/\d+/i,
+      // Any tiktok domain with path (catch-all for other formats)
+      /(?:www\.|m\.|vm\.|vt\.)?tiktok\.com\/[\w\/@.-]+/i,
     ];
 
     return patterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if URL is a short/redirect URL that needs resolution
+   */
+  isShortUrl(url: string): boolean {
+    const shortPatterns = [
+      /vm\.tiktok\.com\/[\w]+/i,
+      /vt\.tiktok\.com\/[\w]+/i,
+      /tiktok\.com\/t\/[\w]+/i,
+    ];
+    return shortPatterns.some(pattern => pattern.test(url));
   }
 
   /**
@@ -47,18 +68,27 @@ class TikTokService {
         return standardMatch[1];
       }
 
-      // Short format: vm.tiktok.com/ABC or tiktok.com/t/ABC
-      // These need to be resolved to get the actual video ID
-      const shortMatch = url.match(/(?:vm\.tiktok\.com|tiktok\.com\/t)\/([\w]+)/i);
-      if (shortMatch?.[1]) {
-        // Return the short code - will need to resolve later
-        return shortMatch[1];
-      }
-
       // Direct video format: tiktok.com/v/1234567890
       const directMatch = url.match(/tiktok\.com\/v\/(\d+)/i);
       if (directMatch?.[1]) {
         return directMatch[1];
+      }
+
+      // Mobile format: m.tiktok.com/v/1234567890
+      const mobileMatch = url.match(/m\.tiktok\.com\/v\/(\d+)/i);
+      if (mobileMatch?.[1]) {
+        return mobileMatch[1];
+      }
+
+      // Short format - return the short code (needs resolution)
+      const shortMatch = url.match(/(?:vm|vt)\.tiktok\.com\/([\w]+)/i);
+      if (shortMatch?.[1]) {
+        return shortMatch[1];
+      }
+
+      const tMatch = url.match(/tiktok\.com\/t\/([\w]+)/i);
+      if (tMatch?.[1]) {
+        return tMatch[1];
       }
 
       return null;
@@ -69,17 +99,78 @@ class TikTokService {
   }
 
   /**
-   * Normalize TikTok URL to standard format
+   * Normalize TikTok URL - remove tracking parameters
    */
   normalizeUrl(url: string): string {
-    // Remove tracking parameters
     try {
       const urlObj = new URL(url);
-      // Keep only the path
       return `${urlObj.origin}${urlObj.pathname}`;
     } catch {
       return url;
     }
+  }
+
+  // ============================================
+  // URL RESOLUTION
+  // ============================================
+
+  /**
+   * Resolve short URL to full URL by following redirects
+   */
+  async resolveShortUrl(shortUrl: string): Promise<string> {
+    try {
+      // Follow redirects to get the final URL
+      const response = await axios.head(shortUrl, {
+        maxRedirects: 5,
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+
+      // The final URL after redirects
+      const resolvedUrl = response.request?.res?.responseUrl ||
+                          response.request?.responseURL ||
+                          response.headers?.location;
+
+      if (resolvedUrl && resolvedUrl.includes('tiktok.com')) {
+        return this.normalizeUrl(resolvedUrl);
+      }
+
+      // Fallback: try GET request
+      const getResponse = await axios.get(shortUrl, {
+        maxRedirects: 5,
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 400,
+      });
+
+      const finalUrl = getResponse.request?.res?.responseUrl ||
+                       getResponse.request?.responseURL;
+
+      if (finalUrl && finalUrl.includes('tiktok.com')) {
+        return this.normalizeUrl(finalUrl);
+      }
+
+      return shortUrl;
+    } catch (error) {
+      console.error('Failed to resolve TikTok short URL:', error);
+      // Return original URL if resolution fails
+      return shortUrl;
+    }
+  }
+
+  /**
+   * Ensure we have a full URL (resolve if short)
+   */
+  async getFullUrl(url: string): Promise<string> {
+    const normalizedUrl = this.normalizeUrl(url);
+
+    if (this.isShortUrl(normalizedUrl)) {
+      console.log('Resolving short TikTok URL:', normalizedUrl);
+      const resolved = await this.resolveShortUrl(normalizedUrl);
+      console.log('Resolved to:', resolved);
+      return resolved;
+    }
+
+    return normalizedUrl;
   }
 
   // ============================================
@@ -91,15 +182,17 @@ class TikTokService {
    */
   async getVideoMetadata(videoUrl: string): Promise<TikTokVideoMetadata> {
     try {
-      const normalizedUrl = this.normalizeUrl(videoUrl);
+      // First, resolve short URLs to full URLs
+      const fullUrl = await this.getFullUrl(videoUrl);
 
       // Use TikTok's official oEmbed endpoint
-      const oEmbedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(normalizedUrl)}`;
+      const oEmbedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(fullUrl)}`;
 
       const response = await axios.get(oEmbedUrl, {
         timeout: 15000,
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; RecipeApp/1.0)',
         }
       });
 
@@ -118,15 +211,19 @@ class TikTokService {
           }
         }
 
+        // Extract video ID from the resolved URL
+        const videoId = this.extractVideoId(fullUrl);
+
         return {
           success: true,
-          videoId: this.extractVideoId(normalizedUrl) || undefined,
+          videoId: videoId || undefined,
           title: data.title || '',
-          description: data.title || '', // oEmbed only provides title as description
+          description: data.title || '',
           author: data.author_name || '',
           authorUsername,
           thumbnailUrl: data.thumbnail_url || '',
           hashtags,
+          resolvedUrl: fullUrl,
         };
       }
 
@@ -167,24 +264,6 @@ class TikTokService {
     }
   }
 
-  /**
-   * Attempt to get more detailed description via web scraping
-   * This is a fallback when oEmbed doesn't provide enough info
-   */
-  async scrapeVideoDescription(videoUrl: string): Promise<string | null> {
-    try {
-      // Use a CORS proxy or server-side endpoint in production
-      // For now, we'll rely on the oEmbed data
-      // This method is a placeholder for future server-side implementation
-
-      console.log('Description scraping would require server-side implementation');
-      return null;
-    } catch (error) {
-      console.error('Failed to scrape TikTok description:', error);
-      return null;
-    }
-  }
-
   // ============================================
   // HELPER METHODS
   // ============================================
@@ -198,7 +277,6 @@ class TikTokService {
 
     if (!matches) return [];
 
-    // Clean up hashtags and remove duplicates
     return [...new Set(matches.map(tag => tag.toLowerCase()))];
   }
 
@@ -214,7 +292,6 @@ class TikTokService {
       '#foodie', '#yummy', '#delicious', '#tasty',
       '#recipetiktok', '#cookingtiktok', '#learnontiktok',
       '#howto', '#tutorial', '#diy',
-      // Arabic cooking hashtags
       '#طبخ', '#وصفات', '#اكل', '#مطبخ',
     ];
 
@@ -279,8 +356,6 @@ class TikTokService {
    * Generate thumbnail URL variants
    */
   getThumbnailUrl(thumbnailUrl: string, quality: 'original' | 'high' | 'medium' = 'high'): string {
-    // TikTok thumbnails from oEmbed are usually good quality
-    // This method is here for future quality adjustments if needed
     return thumbnailUrl;
   }
 }

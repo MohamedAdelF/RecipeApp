@@ -22,17 +22,35 @@ class YouTubeService {
   // ============================================
   extractVideoId(url: string): string | null {
     try {
-      // Handle various YouTube URL formats
+      // Handle ALL YouTube URL formats
       const patterns = [
-        /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/,
-        /youtube\.com\/embed\/([^&\s]+)/,
-        /youtube\.com\/v\/([^&\s]+)/,
+        // Standard watch URL: youtube.com/watch?v=VIDEO_ID
+        /(?:youtube\.com\/watch\?v=)([^&\s#]+)/i,
+        // Short URL: youtu.be/VIDEO_ID
+        /(?:youtu\.be\/)([^&\s?#]+)/i,
+        // Embed URL: youtube.com/embed/VIDEO_ID
+        /youtube\.com\/embed\/([^&\s?#]+)/i,
+        // Old embed URL: youtube.com/v/VIDEO_ID
+        /youtube\.com\/v\/([^&\s?#]+)/i,
+        // Shorts URL: youtube.com/shorts/VIDEO_ID
+        /youtube\.com\/shorts\/([^&\s?#]+)/i,
+        // Live URL: youtube.com/live/VIDEO_ID
+        /youtube\.com\/live\/([^&\s?#]+)/i,
+        // Mobile URL: m.youtube.com/watch?v=VIDEO_ID
+        /m\.youtube\.com\/watch\?v=([^&\s#]+)/i,
+        // Music URL: music.youtube.com/watch?v=VIDEO_ID
+        /music\.youtube\.com\/watch\?v=([^&\s#]+)/i,
+        // Attribution link: youtube.com/attribution_link?...v=VIDEO_ID
+        /youtube\.com\/attribution_link\?.*v=([^&\s#]+)/i,
+        // Watch with feature: youtube.com/watch?feature=...&v=VIDEO_ID
+        /youtube\.com\/watch\?.*v=([^&\s#]+)/i,
       ];
 
       for (const pattern of patterns) {
         const match = url.match(pattern);
         if (match && match[1]) {
-          return match[1];
+          // Clean the video ID (remove any trailing characters)
+          return match[1].split(/[?&#]/)[0];
         }
       }
 
@@ -226,7 +244,13 @@ export default YouTubeService;
 // HELPER: Detect if URL is YouTube
 // ============================================
 export const isYouTubeUrl = (url: string): boolean => {
-  return /(?:youtube\.com|youtu\.be)/.test(url);
+  const patterns = [
+    /youtube\.com/i,
+    /youtu\.be/i,
+    /m\.youtube\.com/i,
+    /music\.youtube\.com/i,
+  ];
+  return patterns.some(pattern => pattern.test(url));
 };
 
 // ============================================

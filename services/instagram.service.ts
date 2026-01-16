@@ -14,6 +14,7 @@ export interface InstagramVideoMetadata {
   thumbnailUrl?: string;
   mediaType?: 'reel' | 'post' | 'tv';
   hashtags?: string[];
+  resolvedUrl?: string;
   error?: string;
 }
 
@@ -24,18 +25,40 @@ class InstagramService {
   // ============================================
 
   /**
-   * Check if URL is an Instagram URL
+   * Check if URL is an Instagram URL (supports ALL formats)
    */
   isInstagramUrl(url: string): boolean {
     const patterns = [
+      // Standard formats
       /instagram\.com\/reel\/[\w-]+/i,
+      /instagram\.com\/reels\/[\w-]+/i,
       /instagram\.com\/p\/[\w-]+/i,
       /instagram\.com\/tv\/[\w-]+/i,
+      // Short URL formats
       /instagr\.am\/p\/[\w-]+/i,
       /instagr\.am\/reel\/[\w-]+/i,
+      /instagr\.am\/reels\/[\w-]+/i,
+      // Share URLs
+      /instagram\.com\/share\/[\w-]+/i,
+      // Stories (though we can't extract these)
+      /instagram\.com\/stories\/[\w.-]+\/\d+/i,
+      // Any instagram domain with valid path
+      /(?:www\.)?instagram\.com\/[\w\/@.-]+/i,
+      /instagr\.am\/[\w\/@.-]+/i,
     ];
 
     return patterns.some(pattern => pattern.test(url));
+  }
+
+  /**
+   * Check if URL is a short/redirect URL that needs resolution
+   */
+  isShortUrl(url: string): boolean {
+    const shortPatterns = [
+      /instagr\.am\//i,
+      /instagram\.com\/share\//i,
+    ];
+    return shortPatterns.some(pattern => pattern.test(url));
   }
 
   /**
@@ -43,8 +66,8 @@ class InstagramService {
    */
   extractMediaId(url: string): string | null {
     try {
-      // Reel format: instagram.com/reel/ABC123
-      const reelMatch = url.match(/instagram\.com\/reel\/([\w-]+)/i);
+      // Reel format: instagram.com/reel/ABC123 or instagram.com/reels/ABC123
+      const reelMatch = url.match(/instagram\.com\/reels?\/([\w-]+)/i);
       if (reelMatch?.[1]) {
         return reelMatch[1];
       }
@@ -61,10 +84,21 @@ class InstagramService {
         return tvMatch[1];
       }
 
-      // Short URL format: instagr.am/p/ABC123 or instagr.am/reel/ABC123
-      const shortMatch = url.match(/instagr\.am\/(?:p|reel)\/([\w-]+)/i);
-      if (shortMatch?.[1]) {
-        return shortMatch[1];
+      // Short URL formats: instagr.am/p/ABC123 or instagr.am/reel/ABC123
+      const shortPostMatch = url.match(/instagr\.am\/p\/([\w-]+)/i);
+      if (shortPostMatch?.[1]) {
+        return shortPostMatch[1];
+      }
+
+      const shortReelMatch = url.match(/instagr\.am\/reels?\/([\w-]+)/i);
+      if (shortReelMatch?.[1]) {
+        return shortReelMatch[1];
+      }
+
+      // Share format: instagram.com/share/ABC123
+      const shareMatch = url.match(/instagram\.com\/share\/([\w-]+)/i);
+      if (shareMatch?.[1]) {
+        return shareMatch[1];
       }
 
       return null;
@@ -78,7 +112,7 @@ class InstagramService {
    * Detect media type from URL
    */
   getMediaType(url: string): 'reel' | 'post' | 'tv' | null {
-    if (/instagram\.com\/reel\//i.test(url) || /instagr\.am\/reel\//i.test(url)) {
+    if (/instagram\.com\/reels?\//i.test(url) || /instagr\.am\/reels?\//i.test(url)) {
       return 'reel';
     }
     if (/instagram\.com\/tv\//i.test(url)) {
@@ -91,12 +125,11 @@ class InstagramService {
   }
 
   /**
-   * Normalize Instagram URL to standard format
+   * Normalize Instagram URL - remove tracking parameters
    */
   normalizeUrl(url: string): string {
     try {
       const urlObj = new URL(url);
-      // Remove trailing slashes and query parameters
       let path = urlObj.pathname.replace(/\/$/, '');
       return `https://www.instagram.com${path}/`;
     } catch {
@@ -105,26 +138,93 @@ class InstagramService {
   }
 
   // ============================================
+  // URL RESOLUTION
+  // ============================================
+
+  /**
+   * Resolve short URL to full URL by following redirects
+   */
+  async resolveShortUrl(shortUrl: string): Promise<string> {
+    try {
+      // Follow redirects to get the final URL
+      const response = await axios.head(shortUrl, {
+        maxRedirects: 5,
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 400,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
+        }
+      });
+
+      const resolvedUrl = response.request?.res?.responseUrl ||
+                          response.request?.responseURL ||
+                          response.headers?.location;
+
+      if (resolvedUrl && resolvedUrl.includes('instagram.com')) {
+        return this.normalizeUrl(resolvedUrl);
+      }
+
+      // Fallback: try GET request
+      const getResponse = await axios.get(shortUrl, {
+        maxRedirects: 5,
+        timeout: 10000,
+        validateStatus: (status) => status >= 200 && status < 400,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)',
+        }
+      });
+
+      const finalUrl = getResponse.request?.res?.responseUrl ||
+                       getResponse.request?.responseURL;
+
+      if (finalUrl && finalUrl.includes('instagram.com')) {
+        return this.normalizeUrl(finalUrl);
+      }
+
+      return shortUrl;
+    } catch (error) {
+      console.error('Failed to resolve Instagram short URL:', error);
+      return shortUrl;
+    }
+  }
+
+  /**
+   * Ensure we have a full URL (resolve if short)
+   */
+  async getFullUrl(url: string): Promise<string> {
+    const normalizedUrl = this.normalizeUrl(url);
+
+    if (this.isShortUrl(url)) {
+      console.log('Resolving short Instagram URL:', url);
+      const resolved = await this.resolveShortUrl(url);
+      console.log('Resolved to:', resolved);
+      return resolved;
+    }
+
+    return normalizedUrl;
+  }
+
+  // ============================================
   // METADATA EXTRACTION
   // ============================================
 
   /**
    * Get video metadata using oEmbed API (free, official)
-   * Note: Instagram's oEmbed has more restrictions than TikTok's
    */
   async getVideoMetadata(videoUrl: string): Promise<InstagramVideoMetadata> {
     try {
-      const normalizedUrl = this.normalizeUrl(videoUrl);
-      const mediaType = this.getMediaType(normalizedUrl);
+      // First, resolve short URLs to full URLs
+      const fullUrl = await this.getFullUrl(videoUrl);
+      const mediaType = this.getMediaType(fullUrl);
 
       // Instagram's official oEmbed endpoint
-      // Note: Requires app review for full access in production
-      const oEmbedUrl = `https://api.instagram.com/oembed?url=${encodeURIComponent(normalizedUrl)}`;
+      const oEmbedUrl = `https://api.instagram.com/oembed?url=${encodeURIComponent(fullUrl)}`;
 
       const response = await axios.get(oEmbedUrl, {
         timeout: 15000,
         headers: {
           'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (compatible; RecipeApp/1.0)',
         }
       });
 
@@ -139,14 +239,15 @@ class InstagramService {
 
         return {
           success: true,
-          mediaId: this.extractMediaId(normalizedUrl) || undefined,
+          mediaId: this.extractMediaId(fullUrl) || undefined,
           title: data.title || '',
-          description: data.title || '', // oEmbed title often contains the caption
+          description: data.title || '',
           author: data.author_name || '',
           authorUsername,
           thumbnailUrl: data.thumbnail_url || '',
           mediaType: mediaType || undefined,
           hashtags,
+          resolvedUrl: fullUrl,
         };
       }
 
@@ -157,9 +258,14 @@ class InstagramService {
     } catch (error) {
       console.error('Failed to get Instagram metadata:', error);
 
+      // Try to return basic metadata even if oEmbed fails
+      const fullUrl = await this.getFullUrl(videoUrl);
+      const basicMetadata = this.getBasicMetadataFromUrl(fullUrl);
+
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
           return {
+            ...basicMetadata,
             success: false,
             error: 'Request timeout - please try again',
           };
@@ -167,6 +273,7 @@ class InstagramService {
 
         if (error.response?.status === 404) {
           return {
+            ...basicMetadata,
             success: false,
             error: 'Post not found or is private',
           };
@@ -174,14 +281,15 @@ class InstagramService {
 
         if (error.response?.status === 400) {
           return {
+            ...basicMetadata,
             success: false,
             error: 'Invalid Instagram URL',
           };
         }
 
-        // Instagram often returns 401/403 for private accounts
         if (error.response?.status === 401 || error.response?.status === 403) {
           return {
+            ...basicMetadata,
             success: false,
             error: 'This post is from a private account or requires login to view',
           };
@@ -189,6 +297,7 @@ class InstagramService {
       }
 
       return {
+        ...basicMetadata,
         success: false,
         error: 'Failed to fetch post information. The post may be private or unavailable.',
       };
@@ -197,7 +306,6 @@ class InstagramService {
 
   /**
    * Fallback: Build metadata from URL when oEmbed fails
-   * This provides minimal info but allows the flow to continue
    */
   getBasicMetadataFromUrl(videoUrl: string): InstagramVideoMetadata {
     const mediaId = this.extractMediaId(videoUrl);
@@ -213,6 +321,7 @@ class InstagramService {
       authorUsername: '',
       thumbnailUrl: '',
       hashtags: [],
+      resolvedUrl: videoUrl,
     };
   }
 
@@ -229,7 +338,6 @@ class InstagramService {
 
     if (!matches) return [];
 
-    // Clean up hashtags and remove duplicates
     return [...new Set(matches.map(tag => tag.toLowerCase()))];
   }
 
@@ -245,7 +353,6 @@ class InstagramService {
       '#foodie', '#yummy', '#delicious', '#tasty',
       '#instafood', '#foodporn', '#foodphotography',
       '#reelsrecipe', '#reelsfood', '#cookingreels',
-      // Arabic cooking hashtags
       '#طبخ', '#وصفات', '#اكل', '#مطبخ',
     ];
 
@@ -308,10 +415,8 @@ class InstagramService {
 
   /**
    * Generate a thumbnail URL from media ID
-   * Note: Direct thumbnail access may be restricted
    */
   getThumbnailUrl(thumbnailUrl: string): string {
-    // Instagram thumbnails from oEmbed are usually available
     return thumbnailUrl;
   }
 }
