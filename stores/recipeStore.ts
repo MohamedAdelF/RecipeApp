@@ -20,6 +20,7 @@ interface RecipeState {
   toggleFavorite: (id: string) => Promise<void>;
   setCurrentRecipe: (recipe: Recipe | null) => void;
   clearError: () => void;
+  clearAll: () => void;
 }
 
 export const useRecipeStore = create<RecipeState>()(
@@ -158,11 +159,15 @@ export const useRecipeStore = create<RecipeState>()(
         try {
           await supabaseService.deleteRecipe(id);
 
+          // Update local state immediately
           set((state) => ({
             recipes: state.recipes.filter((r) => r.id !== id),
             currentRecipe:
               state.currentRecipe?.id === id ? null : state.currentRecipe,
           }));
+
+          // Refresh from database to ensure sync
+          await get().fetchRecipes();
         } catch (error) {
           console.error('Delete recipe error:', error);
           throw error;
@@ -181,6 +186,17 @@ export const useRecipeStore = create<RecipeState>()(
       },
 
       clearError: () => set({ error: null }),
+
+      clearAll: () => {
+        // Clear persisted storage
+        AsyncStorage.removeItem('recipe-storage');
+        set({
+          recipes: [],
+          currentRecipe: null,
+          isLoading: false,
+          error: null,
+        });
+      },
     }),
     {
       name: 'recipe-storage',

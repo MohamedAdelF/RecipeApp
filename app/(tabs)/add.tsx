@@ -55,19 +55,6 @@ export default function AddScreen() {
         <Ionicons name="arrow-forward" size={20} color="#1C100D" />
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.card} onPress={() => router.push('/fridge-scan')}>
-        <View style={[styles.cardIcon, styles.cardIconMint]}>
-          <Ionicons name="camera" size={28} color="#1C100D" />
-        </View>
-        <View style={styles.cardBody}>
-          <Text style={styles.cardTitle}>Scan Your Fridge</Text>
-          <Text style={styles.cardDescription}>
-            Take a photo and get recipe ideas based on what you have.
-          </Text>
-        </View>
-        <Ionicons name="arrow-forward" size={20} color="#1C100D" />
-      </TouchableOpacity>
-
       <TouchableOpacity style={styles.card} onPress={() => router.push('/add-recipe?mode=manual')}>
         <View style={[styles.cardIcon, styles.cardIconAmber]}>
           <Ionicons name="create" size={28} color="#1C100D" />

@@ -96,16 +96,24 @@ export default function RecipesScreen() {
         <View style={styles.heroAccent} />
         <View style={styles.heroContent}>
           <View style={styles.heroTopRow}>
-            <View style={styles.heroIcon}>
-              <Ionicons name="logo-youtube" size={24} color="#F2330D" />
+            <View style={styles.heroIconRow}>
+              <View style={[styles.heroIcon, styles.heroIconSmall]}>
+                <Ionicons name="logo-youtube" size={18} color="#FF0000" />
+              </View>
+              <View style={[styles.heroIcon, styles.heroIconSmall]}>
+                <Ionicons name="logo-tiktok" size={18} color="#000000" />
+              </View>
+              <View style={[styles.heroIcon, styles.heroIconSmall]}>
+                <Ionicons name="logo-instagram" size={18} color="#E4405F" />
+              </View>
             </View>
             <View style={styles.heroBadge}>
               <Text style={styles.heroBadgeText}>New</Text>
             </View>
           </View>
-          <Text style={styles.heroTitle}>Turn Video into Recipe</Text>
+          <Text style={styles.heroTitle}>Turn Any Video into a Recipe</Text>
           <Text style={styles.heroSubtitle}>
-            Paste a YouTube link to get ingredients and steps instantly using AI.
+            Paste a link from YouTube, TikTok, or Instagram to extract ingredients and steps with AI.
           </Text>
           <View style={styles.heroButtons}>
             <TouchableOpacity
@@ -240,7 +248,7 @@ export default function RecipesScreen() {
             <EmptyState
               icon="book-outline"
               title="No recipes yet"
-              subtitle="Add your first recipe from a YouTube video or scan your fridge"
+              subtitle="Add your first recipe from a video URL"
               action={
                 <Button
                   title="Add Recipe"
@@ -376,6 +384,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  heroIconRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   heroIcon: {
     width: 48,
     height: 48,
@@ -383,6 +395,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(242, 51, 13, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  heroIconSmall: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
   },
   heroBadge: {
     backgroundColor: 'rgba(85, 107, 47, 0.1)',

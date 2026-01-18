@@ -9,11 +9,13 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
+  Share,
 } from 'react-native';
 import { Text, Button } from '@rneui/themed';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -35,7 +37,7 @@ const { width } = Dimensions.get('window');
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { getRecipe, updateRecipe, deleteRecipe } = useRecipeStore();
+  const { getRecipe, updateRecipe, deleteRecipe, toggleFavorite } = useRecipeStore();
   const { addItemsFromRecipe } = useShoppingStore();
 
   const [recipe, setRecipe] = useState<Recipe | null>(null);
@@ -93,8 +95,8 @@ export default function RecipeDetailScreen() {
 
   const handleAddToShoppingList = () => {
     if (!recipe) return;
-    addItemsFromRecipe(recipe.id, recipe.ingredients);
-    Alert.alert('Added!', 'Ingredients added to shopping list');
+    addItemsFromRecipe(recipe.id, recipe.title, recipe.ingredients);
+    Alert.alert('Added!', `${recipe.ingredients?.length || 0} ingredients added to shopping list`);
   };
 
   const handleDelete = () => {
@@ -111,14 +113,39 @@ export default function RecipeDetailScreen() {
           onPress: async () => {
             try {
               await deleteRecipe(recipe.id);
-              router.back();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete recipe. Please try again.');
+              router.replace('/(tabs)');
+            } catch (error: any) {
+              console.error('Delete error:', error);
+              Alert.alert(
+                'Error',
+                error?.message || 'Failed to delete recipe. Please try again.'
+              );
             }
           },
         },
       ]
     );
+  };
+
+  const handleFavorite = async () => {
+    if (!recipe) return;
+    await toggleFavorite(recipe.id);
+    setRecipe({ ...recipe, is_favorite: !recipe.is_favorite });
+  };
+
+  const handleShare = async () => {
+    if (!recipe) return;
+    try {
+      const message = recipe.source_url
+        ? `Check out this recipe: ${recipe.title}\n${recipe.source_url}`
+        : `Check out this recipe: ${recipe.title}`;
+      await Share.share({
+        message,
+        title: recipe.title,
+      });
+    } catch (error) {
+      // User cancelled or error
+    }
   };
 
 
@@ -270,18 +297,19 @@ export default function RecipeDetailScreen() {
             onLoad={() => setImageLoaded(true)}
           />
 
-          {/* General Dark Overlay */}
-          <View style={styles.heroOverlay} pointerEvents="none" />
-
           {/* Top Gradient for Navigation */}
-          <View style={styles.heroGradientTop} pointerEvents="none" />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.5)', 'transparent']}
+            style={styles.heroGradientTop}
+            pointerEvents="none"
+          />
 
           {/* Bottom Gradient for Text Readability */}
-          <View style={styles.heroGradientBottom} pointerEvents="none">
-            <View style={styles.gradientLayer1} />
-            <View style={styles.gradientLayer2} />
-            <View style={styles.gradientLayer3} />
-          </View>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.heroGradientBottom}
+            pointerEvents="none"
+          />
 
           {/* Navigation Header */}
           <View style={styles.heroNav}>
@@ -300,6 +328,15 @@ export default function RecipeDetailScreen() {
             <View style={styles.heroNavRight}>
               <TouchableOpacity
                 style={styles.heroNavButton}
+                onPress={handleShare}
+                activeOpacity={0.8}
+              >
+                <BlurView intensity={40} tint="dark" style={styles.heroNavButtonInner}>
+                  <Ionicons name="share-outline" size={20} color="#FFF" />
+                </BlurView>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.heroNavButton}
                 onPress={handleDelete}
                 activeOpacity={0.8}
               >
@@ -308,21 +345,22 @@ export default function RecipeDetailScreen() {
                 </BlurView>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.heroNavButton,
-                  recipe.is_favorite && styles.heroNavButtonFavorite
-                ]}
+                style={styles.heroNavButton}
+                onPress={handleFavorite}
                 activeOpacity={0.8}
               >
                 <BlurView
                   intensity={40}
-                  tint="dark"
-                  style={styles.heroNavButtonInner}
+                  tint={recipe.is_favorite ? "default" : "dark"}
+                  style={[
+                    styles.heroNavButtonInner,
+                    recipe.is_favorite && styles.heroNavButtonInnerFavorite
+                  ]}
                 >
                   <Ionicons
                     name={recipe.is_favorite ? "heart" : "heart-outline"}
                     size={20}
-                    color={recipe.is_favorite ? "#F2330D" : "#FFF"}
+                    color={recipe.is_favorite ? "#FFF" : "#FFF"}
                   />
                 </BlurView>
               </TouchableOpacity>
@@ -331,11 +369,11 @@ export default function RecipeDetailScreen() {
 
           {/* Info Content */}
           <View style={styles.heroContent}>
-            <Text style={styles.heroTitle} numberOfLines={2}>
+            <Text style={styles.heroTitle} numberOfLines={2} ellipsizeMode="tail">
               {recipe.title}
             </Text>
             {recipe.description && (
-              <Text style={styles.heroDescription} numberOfLines={2}>
+              <Text style={styles.heroDescription} numberOfLines={2} ellipsizeMode="tail">
                 {recipe.description}
               </Text>
             )}
@@ -439,11 +477,13 @@ export default function RecipeDetailScreen() {
             </View>
           </View>
 
-          <ServingAdjuster
-            servings={recipe.current_servings}
-            originalServings={recipe.original_servings}
-            onChange={handleServingChange}
-          />
+          {activeTab === 'ingredients' && (
+            <ServingAdjuster
+              servings={recipe.current_servings}
+              originalServings={recipe.original_servings}
+              onChange={handleServingChange}
+            />
+          )}
 
           <View style={styles.tabContent}>
             {activeTab === 'ingredients' ? (
@@ -551,48 +591,19 @@ const styles = StyleSheet.create({
     height: 400,
     width: '100%',
   },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-  },
   heroGradientTop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     height: 120,
-    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   heroGradientBottom: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 320,
-  },
-  gradientLayer1: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 320,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  gradientLayer2: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 220,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  gradientLayer3: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 140,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    height: 250,
   },
   heroNav: {
     position: 'absolute',
@@ -616,15 +627,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  heroNavButtonFavorite: {
-    backgroundColor: '#F2330D',
-    borderColor: '#F2330D',
-  },
   heroNavButtonInner: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  heroNavButtonInnerFavorite: {
+    backgroundColor: '#F2330D',
   },
   heroContent: {
     position: 'absolute',
@@ -639,19 +649,22 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: '#FFFFFF',
     fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 28,
-    lineHeight: 34,
-    marginBottom: 10,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    fontSize: 26,
+    lineHeight: 32,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   heroDescription: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.95)',
     fontFamily: 'NotoSans_500Medium',
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 20,
+    marginBottom: 16,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   heroMetaRow: {
     flexDirection: 'row',

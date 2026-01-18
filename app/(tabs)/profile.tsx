@@ -62,77 +62,77 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
         <ListItem containerStyle={styles.listItem} onPress={() => {}}>
-          <Ionicons name="person-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Edit Profile</ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+          <View style={styles.listRow}>
+            <Ionicons name="person-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Edit Profile</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem} onPress={() => {}}>
-          <Ionicons name="restaurant-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Dietary Preferences</ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+          <View style={styles.listRow}>
+            <Ionicons name="restaurant-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Dietary Preferences</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem} onPress={() => router.push('/paywall')}>
-          <Ionicons name="diamond-outline" size={22} color="#F2330D" />
-          <ListItem.Content>
-            <ListItem.Title style={styles.upgradeText}>
+          <View style={styles.listRow}>
+            <Ionicons name="diamond-outline" size={22} color="#F2330D" />
+            <Text style={[styles.listTitle, styles.upgradeText]}>
               {user?.is_premium ? 'Manage Subscription' : 'Upgrade to Pro'}
-            </ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Preferences</Text>
         <ListItem containerStyle={styles.listItem}>
-          <Ionicons name="moon-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Dark Mode</ListItem.Title>
-          </ListItem.Content>
-          <Switch value={false} onValueChange={() => {}} />
+          <View style={styles.listRow}>
+            <Ionicons name="moon-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Dark Mode</Text>
+            <Switch value={false} onValueChange={() => {}} />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem}>
-          <Ionicons name="notifications-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Notifications</ListItem.Title>
-          </ListItem.Content>
-          <Switch value={true} onValueChange={() => {}} />
+          <View style={styles.listRow}>
+            <Ionicons name="notifications-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Notifications</Text>
+            <Switch value={true} onValueChange={() => {}} />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem}>
-          <Ionicons name="volume-high-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Voice Feedback</ListItem.Title>
-          </ListItem.Content>
-          <Switch value={true} onValueChange={() => {}} />
+          <View style={styles.listRow}>
+            <Ionicons name="volume-high-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Voice Feedback</Text>
+            <Switch value={true} onValueChange={() => {}} />
+          </View>
         </ListItem>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Support</Text>
         <ListItem containerStyle={styles.listItem} onPress={() => {}}>
-          <Ionicons name="help-circle-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Help & FAQ</ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+          <View style={styles.listRow}>
+            <Ionicons name="help-circle-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Help & FAQ</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem} onPress={() => {}}>
-          <Ionicons name="mail-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Contact Support</ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+          <View style={styles.listRow}>
+            <Ionicons name="mail-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Contact Support</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
         <ListItem containerStyle={styles.listItem} onPress={() => {}}>
-          <Ionicons name="document-text-outline" size={22} color="#9C5749" />
-          <ListItem.Content>
-            <ListItem.Title>Terms & Privacy</ListItem.Title>
-          </ListItem.Content>
-          <ListItem.Chevron />
+          <View style={styles.listRow}>
+            <Ionicons name="document-text-outline" size={22} color="#9C5749" />
+            <Text style={styles.listTitle}>Terms & Privacy</Text>
+            <Ionicons name="chevron-forward" size={18} color="#C8B7B2" />
+          </View>
         </ListItem>
       </View>
 
@@ -246,6 +246,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
     borderBottomColor: '#F0E6E2',
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  listTitle: {
+    flex: 1,
+    marginLeft: 12,
+    color: '#1C100D',
+    fontFamily: 'NotoSans_600SemiBold',
   },
   upgradeText: {
     color: '#F2330D',

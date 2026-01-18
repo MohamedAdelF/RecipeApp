@@ -53,6 +53,13 @@ class SupabaseService {
     if (error) throw error;
   }
 
+  async resetPassword(email: string) {
+    const { error } = await this.client.auth.resetPasswordForEmail(email, {
+      redirectTo: 'recipeapp://auth/reset-password',
+    });
+    if (error) throw error;
+  }
+
   async signInWithGoogle() {
     const redirectTo = AuthSession.makeRedirectUri({
       scheme: 'recipeapp',
@@ -171,8 +178,17 @@ class SupabaseService {
   }
 
   async deleteRecipe(id: string): Promise<void> {
-    const { error } = await this.client.from('recipes').delete().eq('id', id);
+    const session = await this.getSession();
+    if (!session) throw new Error('Not authenticated');
+
+    const { error, count } = await this.client
+      .from('recipes')
+      .delete({ count: 'exact' })
+      .eq('id', id)
+      .eq('user_id', session.user.id);
+
     if (error) throw error;
+    if (count === 0) throw new Error('Recipe not found or already deleted');
   }
 
   // ============================================

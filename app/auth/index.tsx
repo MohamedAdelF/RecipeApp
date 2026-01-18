@@ -1,33 +1,91 @@
-import { useState } from 'react';
-import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
-import { Text, Input, Button } from '@rneui/themed';
+import { useState, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  Animated,
+} from 'react-native';
+import { Text, Button } from '@rneui/themed';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/stores/authStore';
+import { supabaseService } from '@/services/supabase.service';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { FormInput } from '@/components/auth/FormInput';
+import { PrimaryButton } from '@/components/auth/PrimaryButton';
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AuthScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { signIn, signUp, signInWithGoogle, isLoading, error, clearError } = useAuthStore();
+  const { signIn, signUp, signInWithGoogle, isLoading, clearError } = useAuthStore();
 
   const [isSignUp, setIsSignUp] = useState(params.mode === 'signup');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Validation states - only show after user has typed
+  const [touched, setTouched] = useState({
+    email: false,
+    password: false,
+    fullName: false,
+  });
+
+  // Validation logic
+  const validation = useMemo(() => {
+    const emailValid = EMAIL_REGEX.test(email.trim());
+    const passwordValid = password.length >= 6;
+    const nameValid = fullName.trim().length >= 2;
+
+    return {
+      email: {
+        isValid: emailValid,
+        error: touched.email && email.length > 0 && !emailValid
+          ? 'Please enter a valid email address'
+          : undefined,
+      },
+      password: {
+        isValid: passwordValid,
+        error: touched.password && password.length > 0 && !passwordValid
+          ? 'Password must be at least 6 characters'
+          : undefined,
+      },
+      fullName: {
+        isValid: nameValid,
+        error: touched.fullName && fullName.length > 0 && !nameValid
+          ? 'Name must be at least 2 characters'
+          : undefined,
+      },
+    };
+  }, [email, password, fullName, touched]);
+
+  const isFormValid = useMemo(() => {
+    if (isSignUp) {
+      return validation.email.isValid && validation.password.isValid && validation.fullName.isValid;
+    }
+    return validation.email.isValid && validation.password.isValid;
+  }, [isSignUp, validation]);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    // Mark all fields as touched to show any remaining errors
+    setTouched({ email: true, password: true, fullName: true });
+
+    if (!isFormValid) {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
+    setIsSubmitting(true);
     try {
       if (isSignUp) {
         await signUp(email.trim(), password, fullName.trim() || undefined);
@@ -37,13 +95,115 @@ export default function AuthScreen() {
       router.replace('/(tabs)');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Authentication failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!validation.email.isValid) {
+      setTouched(prev => ({ ...prev, email: true }));
+      Alert.alert('Email Required', 'Please enter your email address to reset your password.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await supabaseService.resetPassword(email.trim());
+      setResetEmailSent(true);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to send reset email');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
+    setShowForgotPassword(false);
+    setResetEmailSent(false);
     clearError();
+    setTouched({ email: false, password: false, fullName: false });
   };
+
+  // Forgot Password View
+  if (showForgotPassword) {
+    return (
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.glowTop} />
+          <View style={styles.glowBottom} />
+
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              setShowForgotPassword(false);
+              setResetEmailSent(false);
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#1C100D" />
+          </TouchableOpacity>
+
+          <View style={styles.header}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="key" size={32} color="#FFF" />
+            </View>
+            <Text h2 style={styles.title}>Reset Password</Text>
+            <Text style={styles.subtitle}>
+              {resetEmailSent
+                ? "We've sent you an email with instructions to reset your password."
+                : "Enter your email and we'll send you a link to reset your password."}
+            </Text>
+          </View>
+
+          {!resetEmailSent ? (
+            <View style={styles.form}>
+              <FormInput
+                placeholder="Email"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (!touched.email) setTouched(prev => ({ ...prev, email: true }));
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                leftIcon="mail-outline"
+                error={validation.email.error}
+                isValid={validation.email.isValid}
+              />
+
+              <PrimaryButton
+                title="Send Reset Link"
+                onPress={handleForgotPassword}
+                loading={isSubmitting}
+                disabled={!validation.email.isValid}
+                style={{ marginTop: 8 }}
+              />
+            </View>
+          ) : (
+            <View style={styles.successContainer}>
+              <View style={styles.successIcon}>
+                <Ionicons name="checkmark-circle" size={64} color="#22C55E" />
+              </View>
+              <Text style={styles.successText}>Check your inbox!</Text>
+              <PrimaryButton
+                title="Back to Sign In"
+                onPress={() => {
+                  setShowForgotPassword(false);
+                  setResetEmailSent(false);
+                }}
+                variant="outline"
+                style={{ marginTop: 24 }}
+              />
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -52,7 +212,7 @@ export default function AuthScreen() {
     >
       <LoadingOverlay visible={isLoading} message="Please wait..." />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.glowTop} />
         <View style={styles.glowBottom} />
 
@@ -72,66 +232,74 @@ export default function AuthScreen() {
 
         <View style={styles.form}>
           {isSignUp && (
-            <Input
+            <FormInput
               placeholder="Full Name"
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(text) => {
+                setFullName(text);
+                if (!touched.fullName) setTouched(prev => ({ ...prev, fullName: true }));
+              }}
               autoCapitalize="words"
-              leftIcon={<Ionicons name="person-outline" size={20} color="#9C5749" />}
-              containerStyle={styles.inputContainer}
-              inputContainerStyle={styles.input}
-              inputStyle={styles.inputText}
-              placeholderTextColor="#9C5749"
+              leftIcon="person-outline"
+              error={validation.fullName.error}
+              isValid={validation.fullName.isValid}
             />
           )}
 
-          <Input
+          <FormInput
             placeholder="Email"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (!touched.email) setTouched(prev => ({ ...prev, email: true }));
+            }}
             autoCapitalize="none"
             keyboardType="email-address"
-            leftIcon={<Ionicons name="mail-outline" size={20} color="#9C5749" />}
-            containerStyle={styles.inputContainer}
-            inputContainerStyle={styles.input}
-            inputStyle={styles.inputText}
-            placeholderTextColor="#9C5749"
+            leftIcon="mail-outline"
+            error={validation.email.error}
+            isValid={validation.email.isValid}
           />
 
-          <Input
+          <FormInput
             placeholder="Password"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (!touched.password) setTouched(prev => ({ ...prev, password: true }));
+            }}
             secureTextEntry={!showPassword}
-            leftIcon={<Ionicons name="lock-closed-outline" size={20} color="#9C5749" />}
-            rightIcon={
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#9C5749"
-                onPress={() => setShowPassword(!showPassword)}
-              />
-            }
-            containerStyle={styles.inputContainer}
-            inputContainerStyle={styles.input}
-            inputStyle={styles.inputText}
-            placeholderTextColor="#9C5749"
+            leftIcon="lock-closed-outline"
+            rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+            onRightIconPress={() => setShowPassword(!showPassword)}
+            error={validation.password.error}
+            isValid={validation.password.isValid}
           />
 
-          <Button
+          {!isSignUp && (
+            <TouchableOpacity
+              style={styles.forgotPassword}
+              onPress={() => setShowForgotPassword(true)}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
+
+          <PrimaryButton
             title={isSignUp ? 'Create Account' : 'Sign In'}
             onPress={handleSubmit}
-            buttonStyle={styles.submitButton}
-            titleStyle={styles.submitButtonText}
-            loading={isLoading}
+            loading={isSubmitting}
+            disabled={!isFormValid}
+            style={{ marginTop: isSignUp ? 8 : 0 }}
           />
 
-          <Button
-            title={isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
-            type="clear"
-            titleStyle={styles.toggleText}
-            onPress={toggleMode}
-          />
+          <TouchableOpacity style={styles.toggleButton} onPress={toggleMode}>
+            <Text style={styles.toggleText}>
+              {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+              <Text style={styles.toggleTextBold}>
+                {isSignUp ? 'Sign In' : 'Sign Up'}
+              </Text>
+            </Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.divider}>
@@ -141,18 +309,14 @@ export default function AuthScreen() {
         </View>
 
         <View style={styles.socialButtons}>
-          <Button
-            icon={<Ionicons name="logo-apple" size={24} color="#1C100D" />}
-            type="outline"
-            buttonStyle={styles.socialButton}
-            titleStyle={styles.socialButtonText}
+          <TouchableOpacity
+            style={styles.socialButton}
             onPress={() => Alert.alert('Coming Soon', 'Apple Sign In coming soon!')}
-          />
-          <Button
-            icon={<Ionicons name="logo-google" size={24} color="#DB4437" />}
-            type="outline"
-            buttonStyle={styles.socialButton}
-            titleStyle={styles.socialButtonText}
+          >
+            <Ionicons name="logo-apple" size={24} color="#1C100D" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.socialButton}
             onPress={async () => {
               try {
                 await signInWithGoogle();
@@ -161,7 +325,9 @@ export default function AuthScreen() {
                 Alert.alert('Error', err.message || 'Google sign in failed');
               }
             }}
-          />
+          >
+            <Ionicons name="logo-google" size={24} color="#DB4437" />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.terms}>
@@ -184,7 +350,21 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   glowTop: {
     position: 'absolute',
@@ -213,7 +393,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     shadowColor: '#F2330D',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
@@ -228,47 +408,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     fontFamily: 'NotoSans_500Medium',
+    maxWidth: 300,
   },
   form: {
     marginBottom: 24,
   },
-  inputContainer: {
-    paddingHorizontal: 0,
+  forgotPassword: {
+    alignSelf: 'flex-end',
+    marginBottom: 16,
+    marginTop: -8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#E8D3CE',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFFFFF',
-  },
-  inputText: {
-    color: '#1C100D',
-    fontFamily: 'NotoSans_500Medium',
-  },
-  submitButton: {
-    backgroundColor: '#F2330D',
-    borderRadius: 12,
-    paddingVertical: 14,
-    marginTop: 8,
-    shadowColor: '#F2330D',
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  submitButtonText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 16,
-  },
-  toggleText: {
+  forgotPasswordText: {
     color: '#F2330D',
     fontSize: 14,
     fontFamily: 'NotoSans_600SemiBold',
   },
+  toggleButton: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  toggleText: {
+    color: '#9C5749',
+    fontSize: 14,
+    fontFamily: 'NotoSans_500Medium',
+  },
+  toggleTextBold: {
+    color: '#F2330D',
+    fontFamily: 'NotoSans_700Bold',
+  },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 16,
   },
   dividerLine: {
     flex: 1,
@@ -290,11 +461,28 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
+    borderWidth: 1,
     borderColor: '#E8D3CE',
     backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  socialButtonText: {
-    fontFamily: 'NotoSans_600SemiBold',
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  successIcon: {
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 18,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    color: '#1C100D',
   },
   terms: {
     textAlign: 'center',

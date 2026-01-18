@@ -131,7 +131,7 @@ class AIService {
       const prompt = AI_PROMPTS.analyzeFridgeImage();
       
       const responseText = await generateVision(prompt, imageBase64, {
-        maxOutputTokens: 2000,
+        maxOutputTokens: 4000,
         responseMimeType: 'application/json'
       });
 
@@ -158,16 +158,26 @@ class AIService {
   ): Promise<SuggestedRecipe[]> {
     try {
       const prompt = AI_PROMPTS.suggestRecipesFromFridge(ingredients, userPreferences);
-      
+
       const responseText = await generateText(prompt, {
         temperature: 0.8,
         maxOutputTokens: 3000,
         responseMimeType: 'application/json'
       });
 
+      console.log('AI Recipe Response:', responseText.substring(0, 500));
+
       const result = await parseWithRepair(responseText);
-      
-      return result.recipes || [];
+
+      console.log('Parsed result keys:', Object.keys(result));
+      console.log('Recipes count:', result.recipes?.length ?? 'undefined');
+
+      if (!result.recipes || !Array.isArray(result.recipes)) {
+        console.error('Invalid recipes response:', result);
+        throw new Error('AI did not return valid recipes');
+      }
+
+      return result.recipes;
     } catch (error) {
       console.error('Failed to suggest recipes:', error);
       throw new Error('Failed to suggest recipes from ingredients');

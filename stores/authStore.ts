@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabaseService } from '@/services/supabase.service';
+import { useRecipeStore } from './recipeStore';
+import { useShoppingStore } from './shoppingStore';
 import type { User } from '@/utils/types';
 
 interface AuthState {
@@ -51,6 +53,11 @@ export const useAuthStore = create<AuthState>()(
       signIn: async (email: string, password: string) => {
         try {
           set({ isLoading: true, error: null });
+
+          // Clear old data before signing in new user
+          useRecipeStore.getState().clearAll();
+          useShoppingStore.getState().resetStore();
+
           const { user } = await supabaseService.signIn(email, password);
 
           if (user) {
@@ -60,6 +67,10 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
+
+            // Fetch fresh data for this user
+            useRecipeStore.getState().fetchRecipes();
+            useShoppingStore.getState().fetchItems();
           }
         } catch (error: any) {
           set({
@@ -73,6 +84,11 @@ export const useAuthStore = create<AuthState>()(
       signUp: async (email: string, password: string, fullName?: string) => {
         try {
           set({ isLoading: true, error: null });
+
+          // Clear old data before signing up new user
+          useRecipeStore.getState().clearAll();
+          useShoppingStore.getState().resetStore();
+
           const { user, session } = await supabaseService.signUp(email, password);
 
           if (user && session) {
@@ -112,6 +128,11 @@ export const useAuthStore = create<AuthState>()(
       signInWithGoogle: async () => {
         try {
           set({ isLoading: true, error: null });
+
+          // Clear old data before signing in new user
+          useRecipeStore.getState().clearAll();
+          useShoppingStore.getState().resetStore();
+
           const { user } = await supabaseService.signInWithGoogle();
 
           if (user) {
@@ -133,6 +154,10 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: true,
               isLoading: false,
             });
+
+            // Fetch fresh data for this user
+            useRecipeStore.getState().fetchRecipes();
+            useShoppingStore.getState().fetchItems();
           }
         } catch (error: any) {
           set({
@@ -146,6 +171,11 @@ export const useAuthStore = create<AuthState>()(
       signOut: async () => {
         try {
           await supabaseService.signOut();
+
+          // Clear all app data
+          useRecipeStore.getState().clearAll();
+          useShoppingStore.getState().resetStore();
+
           set({
             user: null,
             isAuthenticated: false,

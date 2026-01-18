@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@rneui/themed';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
@@ -109,57 +110,58 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider theme={theme}>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="auth/index" options={{ headerShown: false }} />
-          <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
-          <Stack.Screen name="welcome" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="recipe/[id]"
-            options={{
-              headerShown: true,
-              headerTransparent: true,
-              headerTitle: '',
-              headerLeft: () => <BackButton />,
-              headerRight: () => <RecipeHeaderRight />,
-              headerBackground: () => <TranslucentHeaderBackground />,
-            }}
-          />
-          <Stack.Screen
-            name="cooking/[id]"
-            options={{
-              headerShown: false,
-              presentation: 'fullScreenModal'
-            }}
-          />
-          <Stack.Screen
-            name="add-recipe"
-            options={{
-              headerShown: true,
-              title: 'Add Recipe',
-              presentation: 'modal'
-            }}
-          />
-          <Stack.Screen
-            name="fridge-scan"
-            options={{
-              headerShown: true,
-              title: 'Scan Fridge',
-              presentation: 'modal'
-            }}
-          />
-          <Stack.Screen
-            name="paywall"
-            options={{
-              headerShown: false,
-              presentation: 'modal'
-            }}
-          />
-        </Stack>
-      </ThemeProvider>
+      <BottomSheetModalProvider>
+        <ThemeProvider theme={theme}>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="auth/index" options={{ headerShown: false }} />
+            <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+            <Stack.Screen name="welcome" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="recipe/[id]"
+              options={{
+                headerShown: true,
+                headerTransparent: true,
+                headerTitle: '',
+                headerLeft: () => <BackButton />,
+                headerRight: () => <RecipeHeaderRight />,
+                headerBackground: () => <TranslucentHeaderBackground />,
+              }}
+            />
+            <Stack.Screen
+              name="cooking/[id]"
+              options={{
+                headerShown: false,
+                presentation: 'fullScreenModal'
+              }}
+            />
+            <Stack.Screen
+              name="add-recipe"
+              options={{
+                headerShown: true,
+                title: 'Add Recipe',
+                presentation: 'modal'
+              }}
+            />
+            <Stack.Screen
+              name="fridge-scan"
+              options={{
+                headerShown: false,
+                presentation: 'fullScreenModal'
+              }}
+            />
+            <Stack.Screen
+              name="paywall"
+              options={{
+                headerShown: false,
+                presentation: 'modal'
+              }}
+            />
+          </Stack>
+        </ThemeProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }

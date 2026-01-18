@@ -246,13 +246,16 @@ export interface SuggestedRecipe {
   preview_steps: string[];
 }
 
+export interface DetectedIngredient {
+  name: string;
+  category: IngredientCategory;
+  quantity_estimate: string;
+  confidence: 'high' | 'medium' | 'low';
+  confidence_percent?: number;
+}
+
 export interface FridgeScanResult {
-  ingredients: {
-    name: string;
-    category: IngredientCategory;
-    quantity_estimate: string;
-    confidence: 'high' | 'medium' | 'low';
-  }[];
+  ingredients: DetectedIngredient[];
   total_items: number;
   notes?: string;
 }

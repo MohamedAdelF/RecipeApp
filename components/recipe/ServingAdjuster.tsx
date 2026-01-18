@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text, Button } from '@rneui/themed';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text } from '@rneui/themed';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ServingAdjusterProps {
@@ -14,121 +14,93 @@ export function ServingAdjuster({
   originalServings,
   onChange,
 }: ServingAdjusterProps) {
-  const isScaled = servings !== originalServings;
-
   const decrease = () => {
-    if (servings > 1) {
-      onChange(servings - 1);
-    }
+    if (servings > 1) onChange(servings - 1);
   };
 
   const increase = () => {
-    if (servings < 20) {
-      onChange(servings + 1);
-    }
-  };
-
-  const reset = () => {
-    onChange(originalServings);
+    if (servings < 20) onChange(servings + 1);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.row}>
-        <View style={styles.labelContainer}>
-          <Ionicons name="people-outline" size={20} color="#666" />
-          <Text style={styles.label}>Servings</Text>
-        </View>
-
-        <View style={styles.controls}>
-          <Button
-            icon={<Ionicons name="remove" size={20} color="#FF6B35" />}
-            type="outline"
-            buttonStyle={styles.button}
-            onPress={decrease}
-            disabled={servings <= 1}
-          />
-          <Text style={styles.value}>{servings}</Text>
-          <Button
-            icon={<Ionicons name="add" size={20} color="#FF6B35" />}
-            type="outline"
-            buttonStyle={styles.button}
-            onPress={increase}
-            disabled={servings >= 20}
-          />
-        </View>
+      <View style={styles.leftSection}>
+        <Ionicons name="restaurant-outline" size={22} color="#666" />
+        <Text style={styles.label}>Servings</Text>
       </View>
 
-      {isScaled && (
-        <View style={styles.scaleInfo}>
-          <Text style={styles.scaleText}>
-            Scaled from {originalServings} servings
-          </Text>
-          <Button
-            title="Reset"
-            type="clear"
-            titleStyle={styles.resetText}
-            onPress={reset}
-          />
-        </View>
-      )}
+      <View style={styles.controls}>
+        <TouchableOpacity
+          style={[styles.button, styles.buttonMinus]}
+          onPress={decrease}
+          disabled={servings <= 1}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="remove" size={20} color={servings <= 1 ? '#CCC' : '#666'} />
+        </TouchableOpacity>
+
+        <Text style={styles.value}>{servings}</Text>
+
+        <TouchableOpacity
+          style={[styles.button, styles.buttonPlus]}
+          onPress={increase}
+          disabled={servings >= 20}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add" size={20} color={servings >= 20 ? '#CCC' : '#F2330D'} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#F7F7F7',
-    borderRadius: 12,
-    padding: 16,
-  },
-  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: '#F8F6F5',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
-  labelContainer: {
+  leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   label: {
-    marginLeft: 8,
     fontSize: 16,
+    fontFamily: 'NotoSans_500Medium',
     color: '#666',
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   button: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderColor: '#FF6B35',
-    padding: 0,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonMinus: {
+    borderColor: '#E0E0E0',
+    backgroundColor: '#FFFFFF',
+  },
+  buttonPlus: {
+    borderColor: 'rgba(242, 51, 13, 0.3)',
+    backgroundColor: 'rgba(242, 51, 13, 0.08)',
   },
   value: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A2E',
-    minWidth: 50,
+    fontFamily: 'PlusJakartaSans_700Bold',
+    color: '#1C100D',
+    minWidth: 32,
     textAlign: 'center',
-  },
-  scaleInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E8E8E8',
-  },
-  scaleText: {
-    fontSize: 13,
-    color: '#888',
-  },
-  resetText: {
-    color: '#FF6B35',
-    fontSize: 13,
   },
 });
