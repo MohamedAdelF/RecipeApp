@@ -195,3 +195,65 @@ export function confidenceToPercent(confidence: 'high' | 'medium' | 'low'): numb
       return 85;
   }
 }
+
+// Background colors for ingredient cards (light mode)
+export const CATEGORY_BG_COLORS: Record<string, string> = {
+  produce: '#F0FDF4',
+  meat: '#FEF2F2',
+  dairy: '#FFF7ED',
+  pantry: '#FFFBEB',
+  spices: '#ECFDF5',
+  frozen: '#EFF6FF',
+  beverage: '#F0F9FF',
+  condiment: '#FEF3C7',
+  other: '#F9FAFB',
+};
+
+// Background colors for ingredient cards (dark mode)
+export const CATEGORY_DARK_BG_COLORS: Record<string, string> = {
+  produce: 'rgba(34, 197, 94, 0.1)',
+  meat: 'rgba(239, 68, 68, 0.1)',
+  dairy: 'rgba(249, 115, 22, 0.1)',
+  pantry: 'rgba(234, 179, 8, 0.1)',
+  spices: 'rgba(16, 185, 129, 0.1)',
+  frozen: 'rgba(59, 130, 246, 0.1)',
+  beverage: 'rgba(14, 165, 233, 0.1)',
+  condiment: 'rgba(245, 158, 11, 0.1)',
+  other: 'rgba(156, 163, 175, 0.1)',
+};
+
+/**
+ * Get background colors for an ingredient card
+ */
+export function getIngredientColors(category: string): {
+  bgColor: string;
+  darkBgColor: string;
+} {
+  return {
+    bgColor: CATEGORY_BG_COLORS[category] || '#F9FAFB',
+    darkBgColor: CATEGORY_DARK_BG_COLORS[category] || 'rgba(156, 163, 175, 0.1)',
+  };
+}
+
+/**
+ * Generate a random position for marker display on the image
+ */
+export function generateMarkerPosition(index: number, total: number): { top: string; left: string } {
+  const cols = Math.ceil(Math.sqrt(total));
+  const row = Math.floor(index / cols);
+  const col = index % cols;
+
+  const cellWidth = 60 / cols;
+  const cellHeight = 40 / Math.ceil(total / cols);
+
+  const baseTop = 25 + row * cellHeight;
+  const baseLeft = 20 + col * cellWidth;
+
+  const randomTop = baseTop + Math.random() * (cellHeight * 0.5);
+  const randomLeft = baseLeft + Math.random() * (cellWidth * 0.5);
+
+  return {
+    top: `${Math.min(65, Math.max(25, randomTop))}%`,
+    left: `${Math.min(80, Math.max(15, randomLeft))}%`,
+  };
+}

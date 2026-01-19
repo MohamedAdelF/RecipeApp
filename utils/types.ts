@@ -260,6 +260,16 @@ export interface FridgeScanResult {
   notes?: string;
 }
 
+export interface FridgeScan {
+  id: string;
+  user_id: string;
+  image_url?: string;
+  ingredients: DetectedIngredient[];
+  total_items: number;
+  notes?: string;
+  created_at: string;
+}
+
 export interface IngredientSubstitution {
   ingredient: string;
   ratio: string;

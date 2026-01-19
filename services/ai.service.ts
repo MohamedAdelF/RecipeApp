@@ -91,6 +91,51 @@ const parseWithRepair = async (rawText: string) => {
   }
 };
 
+// ============================================
+// FRIDGE SCAN HELPERS
+// ============================================
+
+// Map abbreviated response {"items":[{"n":"eggs","c":"dairy","q":"12"}]} to FridgeScanResult
+const mapAbbreviatedFridgeResponse = (response: any): FridgeScanResult => ({
+  ingredients: (response.items || []).map((item: any) => ({
+    name: item.n || item.name || 'Unknown',
+    category: item.c || item.category || 'other',
+    quantity_estimate: item.q || item.qty || item.quantity_estimate || '1',
+    confidence: 'high' as const
+  })),
+  total_items: response.count ?? response.total_items ?? response.items?.length ?? 0,
+  notes: response.err || response.notes || undefined
+});
+
+// Try to salvage complete items from a truncated JSON response
+const salvageTruncatedFridgeResponse = (rawText: string): FridgeScanResult | null => {
+  try {
+    // Try to find complete item objects in the truncated response
+    const itemsMatch = rawText.match(/"items"\s*:\s*\[/);
+    if (!itemsMatch) return null;
+
+    const startIdx = rawText.indexOf('[', itemsMatch.index);
+    if (startIdx === -1) return null;
+
+    // Extract individual complete items using regex
+    const itemPattern = /\{"n":"([^"]+)","c":"([^"]+)","q":"([^"]+)"\}/g;
+    const items: Array<{ n: string; c: string; q: string }> = [];
+    let match;
+
+    while ((match = itemPattern.exec(rawText)) !== null) {
+      items.push({ n: match[1], c: match[2], q: match[3] });
+    }
+
+    if (items.length === 0) return null;
+
+    console.log(`Salvaged ${items.length} items from truncated response`);
+    return mapAbbreviatedFridgeResponse({ items, count: items.length });
+  } catch (e) {
+    console.error('Failed to salvage truncated response:', e);
+    return null;
+  }
+};
+
 class AIService {
   
   // ============================================
@@ -129,19 +174,47 @@ class AIService {
   async analyzeFridgeImage(imageBase64: string): Promise<FridgeScanResult> {
     try {
       const prompt = AI_PROMPTS.analyzeFridgeImage();
-      
+
       const responseText = await generateVision(prompt, imageBase64, {
-        maxOutputTokens: 4000,
+        maxOutputTokens: 8192,
+        temperature: 0.2,
         responseMimeType: 'application/json'
       });
 
-      const result = await parseWithRepair(responseText);
-      
-      // Check for error in response
-      if (result.error) {
-        throw new Error(result.error);
+      // Check if response looks truncated (doesn't end with proper JSON closing)
+      const trimmed = responseText.trim();
+      if (!trimmed.endsWith('}')) {
+        console.warn('Detected truncated response, attempting salvage...');
+        const salvaged = salvageTruncatedFridgeResponse(responseText);
+        if (salvaged && salvaged.ingredients.length > 0) {
+          return salvaged;
+        }
+        // If salvage failed, try repair
       }
-      
+
+      let result;
+      try {
+        result = await parseWithRepair(responseText);
+      } catch (parseError) {
+        // Last resort: try to salvage from raw text
+        const salvaged = salvageTruncatedFridgeResponse(responseText);
+        if (salvaged && salvaged.ingredients.length > 0) {
+          return salvaged;
+        }
+        throw parseError;
+      }
+
+      // Check for error in response
+      if (result.err || result.error) {
+        throw new Error(result.err || result.error);
+      }
+
+      // Map abbreviated format to FridgeScanResult
+      // Handle both abbreviated (items/n/c/q) and full format (ingredients/name/category/quantity_estimate)
+      if (result.items) {
+        return mapAbbreviatedFridgeResponse(result);
+      }
+
       return result;
     } catch (error) {
       console.error('Failed to analyze fridge image:', error);

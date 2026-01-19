@@ -22,10 +22,11 @@ export default function FridgeScanScreen() {
         base64: true,
       });
 
-      if (photo?.base64) {
-        setCapturedImage(photo.uri);
-        // TODO: Analyze image
-        console.log('Photo captured, analyze here');
+      if (photo?.uri) {
+        router.push({
+          pathname: '/fridge-review',
+          params: { imageUri: photo.uri },
+        });
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to take picture');
@@ -35,15 +36,16 @@ export default function FridgeScanScreen() {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.7,
         base64: true,
       });
 
-      if (!result.canceled && result.assets[0].base64) {
-        setCapturedImage(result.assets[0].uri);
-        // TODO: Analyze image
-        console.log('Image picked, analyze here');
+      if (!result.canceled && result.assets[0].uri) {
+        router.push({
+          pathname: '/fridge-review',
+          params: { imageUri: result.assets[0].uri },
+        });
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick image');

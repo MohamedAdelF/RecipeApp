@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
-import type { Recipe, User, ShoppingList, ShoppingItem } from '@/utils/types';
+import type { Recipe, User, ShoppingList, ShoppingItem, FridgeScan, DetectedIngredient } from '@/utils/types';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -285,6 +285,69 @@ class SupabaseService {
         : { weekly_scan_count: (profile.weekly_scan_count || 0) + 1 };
 
     await this.updateProfile(session.user.id, updates);
+  }
+
+  // ============================================
+  // FRIDGE SCANS
+  // ============================================
+  async saveFridgeScan(scan: {
+    image_url?: string;
+    ingredients: DetectedIngredient[];
+    total_items: number;
+    notes?: string;
+  }): Promise<FridgeScan> {
+    const session = await this.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+
+    const { data, error } = await this.client
+      .from('fridge_scans')
+      .insert({
+        ...scan,
+        user_id: session.user.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async getFridgeScans(limit = 10): Promise<FridgeScan[]> {
+    const session = await this.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+
+    const { data, error } = await this.client
+      .from('fridge_scans')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+  }
+
+  async getFridgeScan(id: string): Promise<FridgeScan | null> {
+    const { data, error } = await this.client
+      .from('fridge_scans')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async deleteFridgeScan(id: string): Promise<void> {
+    const session = await this.getSession();
+    if (!session?.user) throw new Error('Not authenticated');
+
+    const { error } = await this.client
+      .from('fridge_scans')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', session.user.id);
+
+    if (error) throw error;
   }
 }
 

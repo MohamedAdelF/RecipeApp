@@ -184,37 +184,17 @@ RULES:
   // ANALYZE FRIDGE IMAGE (Vision)
   // ============================================
   analyzeFridgeImage: () => {
-    return `You are analyzing a refrigerator/pantry photo to identify ingredients.
+    return `Analyze this fridge/pantry photo and identify ALL visible cooking ingredients.
 
-Look carefully and identify ALL visible food items and ingredients.
+Return JSON: {"items":[{"n":"name","c":"category","q":"qty"}],"count":N}
 
-Return ONLY valid JSON:
-{
-  "ingredients": [
-    {
-      "name": "ingredient name (singular, lowercase)",
-      "category": "produce/meat/dairy/pantry/frozen/beverage/condiment/other",
-      "quantity_estimate": "approximate amount visible",
-      "confidence": "high/medium/low"
-    }
-  ],
-  "total_items": number,
-  "notes": "any observations about freshness or organization"
-}
-
-RULES:
-1. Be specific (not just "vegetables" but "tomatoes", "lettuce", etc)
-2. Only include items you can clearly see
-3. Group identical items (e.g., "3 eggs" not separate eggs)
-4. Categorize correctly for shopping organization
-5. Use confidence levels honestly
-6. Ignore packaging brands, focus on contents
-
-If image is unclear or not a fridge/pantry, return:
-{
-  "error": "Unable to analyze image - please take a clearer photo of your fridge or pantry",
-  "ingredients": []
-}`;
+Categories: produce/meat/dairy/pantry/spices/condiment/beverage/other
+Rules:
+- Include ALL visible items, not just a few
+- Be specific: "roma tomatoes" not just "tomatoes"
+- Group identical items with quantity: "6 eggs" not separate entries
+- Include beverages useful for cooking (milk, wine, juice)
+If unclear image: {"items":[],"count":0,"err":"unclear"}`;
   },
 
   // ============================================

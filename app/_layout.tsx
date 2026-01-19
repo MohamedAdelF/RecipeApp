@@ -153,6 +153,19 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="fridge-review"
+              options={{
+                headerShown: false,
+                presentation: 'fullScreenModal'
+              }}
+            />
+            <Stack.Screen
+              name="recipe-results"
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="paywall"
               options={{
                 headerShown: false,
